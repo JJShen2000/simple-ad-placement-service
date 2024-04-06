@@ -45,14 +45,14 @@ CREATE TABLE condition_country (
 
 func init() {
 	// Connect to MySQL database
-	config := config.GetConfig()
+	cfg := config.GetConfig()
 	dsn := fmt.Sprintf("%s:%s@%s(%s:%d)/%s",
-		config.Database.Username,
-		config.Database.Password,
-		config.Database.Network,
-		config.Database.Server,
-		config.Database.Port,
-		config.Database.Database)
+		cfg.Database.Username,
+		cfg.Database.Password,
+		cfg.Database.Network,
+		cfg.Database.Server,
+		cfg.Database.Port,
+		cfg.Database.Database)
 
 	dbcoon, err := sqlx.Connect("mysql", dsn)
 	if err != nil {

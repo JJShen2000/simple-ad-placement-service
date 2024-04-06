@@ -12,13 +12,13 @@ import (
 	"github.com/gin-gonic/gin"
 	_ "github.com/go-sql-driver/mysql"
 
-	"github.com/jjshen2000/simple-ads/db"
+	dbpkg "github.com/jjshen2000/simple-ads/db"
 	"github.com/jjshen2000/simple-ads/models"
 )
 
 // Handler for creating advertisement
 func CreateAdvertisement(c *gin.Context) {
-	db := db.GetDB()
+	db := dbpkg.GetDB()
 	validate := models.GetValidate()
 	var ad models.Advertisement
 
@@ -117,7 +117,7 @@ func CreateAdvertisement(c *gin.Context) {
 }
 
 func isValidPlatform(platform string) bool {
-	if len(platform) == 0 {
+	if platform == "" {
 		return true
 	}
 
@@ -158,12 +158,12 @@ func ListActiveAdvertisements(c *gin.Context) {
 		return
 	}
 
-	if len(gender) != 0 && gender != "M" && gender != "F" {
+	if gender != "" && gender != "M" && gender != "F" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid gender"})
 		return
 	}
 
-	if len(country) != 0 && countries.ByName(country) == countries.Unknown {
+	if country != "" && countries.ByName(country) == countries.Unknown {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid country"})
 		return
 	}
@@ -174,7 +174,7 @@ func ListActiveAdvertisements(c *gin.Context) {
 	}
 
 	// Build query *******************************************************************
-	db := db.GetDB()
+	db := dbpkg.GetDB()
 	query := "SELECT title, end_at FROM advertisement WHERE NOW() > start_at AND NOW() < end_at"
 	var args []interface{}
 

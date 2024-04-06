@@ -9,8 +9,8 @@ import (
 
 func main() {
 	router := routes.SetupRoutes()
-	config := config.GetConfig()
-	router.Run(fmt.Sprintf("%s:%d", config.Server.IP, config.Server.Port))
+	cfg := config.GetConfig()
+	router.Run(fmt.Sprintf("%s:%d", cfg.Server.IP, cfg.Server.Port))
 }
 
 
