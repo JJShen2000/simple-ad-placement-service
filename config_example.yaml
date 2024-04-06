@@ -1,0 +1,11 @@
+server:
+  IP: "localhost"
+  Port: 8080
+
+database:
+  Username: "root"
+  Password: "passward"
+  Network: "tcp"
+  Server: "localhost"
+  Port: 3306
+  Database: "ads" # name of database
