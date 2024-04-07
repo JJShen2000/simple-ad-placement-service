@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"errors"
 
 	"github.com/biter777/countries"
 
@@ -134,47 +135,56 @@ func isValidPlatform(platform string) bool {
 	return platform == "" || platformMap[platform] != 0
 }
 
-// Handler for listing active advertisements
-func ListActiveAdvertisements(c *gin.Context) {
-	// Parse parameters
+// Parse request parameters for listing active advertisements
+func parseListParams(c *gin.Context) (offset, limit, age int, gender, country, platform string, err error) {
 	offsetStr := c.DefaultQuery("offset", "1")
-	limitStr := c.DefaultQuery("limit", "5")
-	ageStr := c.DefaultQuery("age", "-1")
-	gender := c.Query("gender")
-	country := c.Query("country")
-	platform := c.Query("platform")
-
-	// Convert them to corresponding types and validate them.
-	offset, err := strconv.Atoi(offsetStr)
+	offset, err = strconv.Atoi(offsetStr)
 	if err != nil || offset < 1 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid offset"})
+		err = errors.New("invalid offset")
 		return
 	}
 	offset -= 1
-	limit, err := strconv.Atoi(limitStr)
+
+	limitStr := c.DefaultQuery("limit", "5")
+	limit, err = strconv.Atoi(limitStr)
 	if err != nil || limit < 1 || limit > 100 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid limit"})
+		err = errors.New("invalid limit")
 		return
 	}
 
-	age, err := strconv.Atoi(ageStr)
-	if err != nil || (ageStr != "-1" && (age < 1 || age > 100)) {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid age"})
+	ageStr := c.DefaultQuery("age", "-1")
+	age, err = strconv.Atoi(ageStr)
+	if err != nil || (c.Query("age") != "" && (age < 1 || age > 100)) {
+		err = errors.New("invalid age")
 		return
 	}
 
+	gender = c.Query("gender")
 	if gender != "" && gender != "M" && gender != "F" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid gender"})
+		err = errors.New("invalid gender")
 		return
 	}
 
+	country = c.Query("country")
 	if country != "" && countries.ByName(country) == countries.Unknown {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid country"})
+		err = errors.New("invalid country")
 		return
 	}
 
-	if !isValidPlatform(platform) {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid platform"})
+	platform = c.Query("platform")
+	if platform != "" && !isValidPlatform(platform) {
+		err = errors.New("invalid platform")
+		return
+	}
+	return
+}
+
+// Handler for listing active advertisements
+func ListActiveAdvertisements(c *gin.Context) {
+	// Parse parameters *******************************************************************
+	offset, limit, age, gender, country, platform, err := parseListParams(c)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
@@ -183,35 +193,24 @@ func ListActiveAdvertisements(c *gin.Context) {
 	query := "SELECT title, end_at FROM advertisement WHERE NOW() > start_at AND NOW() < end_at"
 	var args []interface{}
 
-	if ageStr != "-1" {
+	if age != 0 {
 		query += " AND ? BETWEEN age_start AND age_end"
 		args = append(args, age)
 	}
 
 	if gender != "" {
-		query += " AND gender = ?"
+		query += " AND gender = '?'"
 		args = append(args, gender)
 	}
 
 	if country != "" {
-		query += " AND EXISTS (SELECT 1 FROM condition_country WHERE advertisement_condition.id = condition_country.condition_id AND country_code = ?)"
+		query += " AND EXISTS (SELECT 1 FROM condition_country WHERE advertisement_condition.id = condition_country.condition_id AND country_code = '?')"
 		args = append(args, country)
 	}
 
 	if platform != "" {
 		query += " AND (platform & ?) = ?"
-		var platformMask int
-		switch platform {
-		case "android":
-			platformMask = 1
-		case "ios":
-			platformMask = 2
-		case "web":
-			platformMask = 4
-		default:
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid platform"})
-			return
-		}
+		platformMask := platformMap[platform]
 		args = append(args, platformMask, platformMask)
 	}
 
