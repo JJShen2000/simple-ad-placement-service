@@ -2,7 +2,6 @@ package controller
 
 import (
 	"errors"
-	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -161,7 +160,7 @@ func parseListParams(c *gin.Context) (params listParams, err error) {
 		return
 	}
 
-	ageStr := c.DefaultQuery("age", "-1")
+	ageStr := c.DefaultQuery("age", "0")
 	params.age, err = strconv.Atoi(ageStr)
 	if err != nil || (c.Query("age") != "" && (params.age < 1 || params.age > 100)) {
 		err = errors.New("invalid age")
@@ -188,6 +187,51 @@ func parseListParams(c *gin.Context) (params listParams, err error) {
 	return
 }
 
+// buildQuery constructs a SQL query string and its corresponding arguments based on provided parameters.
+func buildQuery(params listParams) (query string, args []interface{}) {
+	query = "SELECT a.title, a.end_at FROM advertisement AS a\n"
+
+	if params.age != 0 || params.gender != "" || params.country != "" || params.platform != "" {
+		query += " INNER JOIN advertisement_condition AS ac ON a.id = ac.advertisement_id\n"
+	}
+
+	if params.country != "" {
+		query += " INNER JOIN condition_country AS cc ON ac.id = cc.condition_id\n"
+	}
+
+	query += " WHERE NOW() < a.end_at AND NOW() > a.start_at"
+	if params.age != 0 {
+		query += " AND ? BETWEEN ac.age_start AND ac.age_end"
+		args = append(args, params.age)
+	}
+
+	if params.gender != "" {
+		if params.gender == "M" {
+			query += " AND ac.gender != ?"
+			args = append(args, "F")
+		} else if params.gender == "F" {
+			query += " AND ac.gender != ?"
+			args = append(args, "M")
+		}
+	}
+
+	if params.country != "" {
+		query += " AND cc.country_code = ?"
+		args = append(args, params.country)
+	}
+
+	if params.platform != "" {
+		query += " AND (platform & ?) = ?"
+		platformMask := platformMap[params.platform]
+		args = append(args, platformMask, platformMask)
+	}
+
+	query += " ORDER BY end_at ASC LIMIT ? OFFSET ?"
+	args = append(args, params.limit, params.offset)
+
+	return query, args
+}
+
 // Handler for listing active advertisements
 func ListActiveAdvertisements(c *gin.Context) {
 	// Parse parameters *******************************************************************
@@ -196,39 +240,12 @@ func ListActiveAdvertisements(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	offset, limit, age, gender, country, platform := params.offset, params.limit, params.age, params.gender, params.country, params.platform
 
 	// Build query *******************************************************************
-	db := dbpkg.GetDB()
-	query := "SELECT title, end_at FROM advertisement WHERE NOW() > start_at AND NOW() < end_at"
-	var args []interface{}
+	query, args := buildQuery(params)
 
-	if age != 0 {
-		query += " AND ? BETWEEN age_start AND age_end"
-		args = append(args, age)
-	}
-
-	if gender != "" {
-		query += " AND gender = '?'"
-		args = append(args, gender)
-	}
-
-	if country != "" {
-		query += " AND EXISTS (SELECT 1 FROM condition_country WHERE advertisement_condition.id = condition_country.condition_id AND country_code = '?')"
-		args = append(args, country)
-	}
-
-	if platform != "" {
-		query += " AND (platform & ?) = ?"
-		platformMask := platformMap[platform]
-		args = append(args, platformMask, platformMask)
-	}
-
-	query += " ORDER BY end_at ASC LIMIT ? OFFSET ?"
-	args = append(args, limit, offset)
-
-	fmt.Println(limit, " ", offset)
 	// Execute query
+	db := dbpkg.GetDB()
 	rows, err := db.Queryx(query, args...)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch advertisements"})

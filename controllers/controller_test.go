@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 	"time"
+	"reflect"
 
 	"github.com/gin-gonic/gin"
 	"github.com/jjshen2000/simple-ads/models"
@@ -239,7 +240,7 @@ func TestParseListParams(t *testing.T) {
 			expectedData: listParams{
 				offset:   0,
 				limit:    5,
-				age:      -1,
+				age:      0,
 				gender:   "",
 				country:  "",
 				platform: "",
@@ -328,15 +329,121 @@ func TestParseListParams(t *testing.T) {
 			if tc.expectedErr == "" {
 				assert.NoError(t, err)
 				assert.Equal(t, tc.expectedData, params)
-				// assert.Equal(t, tc.expectedData.offset, offset)
-				// assert.Equal(t, tc.expectedData.limit, limit)
-				// assert.Equal(t, tc.expectedData.age, age)
-				// assert.Equal(t, tc.expectedData.gender, gender)
-				// assert.Equal(t, tc.expectedData.country, country)
-				// assert.Equal(t, tc.expectedData.platform, platform)
 			} else {
 				assert.Error(t, err)
 				assert.Contains(t, err.Error(), tc.expectedErr)
+			}
+		})
+	}
+}
+
+func TestBuildQuery(t *testing.T) {
+	testCases := []struct {
+		name         string
+		params       listParams
+		expectedSQL  string
+		expectedArgs []interface{}
+	}{
+		{
+			name: "NoFilters",
+			params: listParams{
+				offset:   0,
+				limit:    10,
+				age:      0,
+				gender:   "",
+				country:  "",
+				platform: "",
+			},
+			expectedSQL:  `SELECT a.title, a.end_at FROM advertisement AS a
+ WHERE NOW() < a.end_at AND NOW() > a.start_at ORDER BY end_at ASC LIMIT ? OFFSET ?`,
+			expectedArgs: []interface{}{10, 0},
+		},
+		{
+			name: "Age 20",
+			params: listParams{
+				offset:   0,
+				limit:    10,
+				age:      20,
+				gender:   "",
+				country:  "",
+				platform: "",
+			},
+			expectedSQL:  `SELECT a.title, a.end_at FROM advertisement AS a
+ INNER JOIN advertisement_condition AS ac ON a.id = ac.advertisement_id
+ WHERE NOW() < a.end_at AND NOW() > a.start_at AND ? BETWEEN ac.age_start AND ac.age_end ORDER BY end_at ASC LIMIT ? OFFSET ?`,
+			expectedArgs: []interface{}{20, 10, 0},
+		},
+		{
+			name: "gender F",
+			params: listParams{
+				offset:   0,
+				limit:    10,
+				age:      0,
+				gender:   "F",
+				country:  "",
+				platform: "",
+			},
+			expectedSQL:  `SELECT a.title, a.end_at FROM advertisement AS a
+ INNER JOIN advertisement_condition AS ac ON a.id = ac.advertisement_id
+ WHERE NOW() < a.end_at AND NOW() > a.start_at AND ac.gender != ? ORDER BY end_at ASC LIMIT ? OFFSET ?`,
+			expectedArgs: []interface{}{"M", 10, 0},
+		},
+		{
+			name: "gender M",
+			params: listParams{
+				offset:   0,
+				limit:    10,
+				age:      0,
+				gender:   "M",
+				country:  "",
+				platform: "",
+			},
+			expectedSQL:  `SELECT a.title, a.end_at FROM advertisement AS a
+ INNER JOIN advertisement_condition AS ac ON a.id = ac.advertisement_id
+ WHERE NOW() < a.end_at AND NOW() > a.start_at AND ac.gender != ? ORDER BY end_at ASC LIMIT ? OFFSET ?`,
+			expectedArgs: []interface{}{"F", 10, 0},
+		},
+		{
+			name: "country TW",
+			params: listParams{
+				offset:   0,
+				limit:    10,
+				age:      0,
+				gender:   "",
+				country:  "TW",
+				platform: "",
+			},
+			expectedSQL:  `SELECT a.title, a.end_at FROM advertisement AS a
+ INNER JOIN advertisement_condition AS ac ON a.id = ac.advertisement_id
+ INNER JOIN condition_country AS cc ON ac.id = cc.condition_id
+ WHERE NOW() < a.end_at AND NOW() > a.start_at AND cc.country_code = ? ORDER BY end_at ASC LIMIT ? OFFSET ?`,
+			expectedArgs: []interface{}{"TW", 10, 0},
+		},
+		{
+			name: "platform ios",
+			params: listParams{
+				offset:   0,
+				limit:    10,
+				age:      0,
+				gender:   "",
+				country:  "",
+				platform: "ios",
+			},
+			expectedSQL:  `SELECT a.title, a.end_at FROM advertisement AS a
+ INNER JOIN advertisement_condition AS ac ON a.id = ac.advertisement_id
+ WHERE NOW() < a.end_at AND NOW() > a.start_at AND (platform & ?) = ? ORDER BY end_at ASC LIMIT ? OFFSET ?`,
+			expectedArgs: []interface{}{uint8(2), uint8(2), 10, 0},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			query, args := buildQuery(tc.params)
+
+			assert.Equal(t, tc.expectedSQL, query)
+
+			if !reflect.DeepEqual(args, tc.expectedArgs) {
+				t.Errorf("Unexpected arguments. Got: %v, Expected: %v", args, tc.expectedArgs)
 			}
 		})
 	}

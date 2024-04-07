@@ -41,7 +41,14 @@ CREATE TABLE condition_country (
     country_code CHAR(2), -- ISO-3166 alpha 2 code
     PRIMARY KEY (condition_id, country_code),
     FOREIGN KEY (condition_id) REFERENCES advertisement_condition(id)
-);`
+);
+
+CREATE INDEX idx_start_at ON advertisement (start_at);
+
+CREATE INDEX idx_end_at ON advertisement (end_at);
+
+CREATE INDEX idx_advertisement_id ON advertisement_condition (advertisement_id);
+`
 
 func init() {
 	// Connect to MySQL database
