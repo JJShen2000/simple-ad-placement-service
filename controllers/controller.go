@@ -16,6 +16,12 @@ import (
 	"github.com/jjshen2000/simple-ads/models"
 )
 
+var platformMap = map[string]uint8{
+	"android": 1,
+	"ios":     2,
+	"web":     4,
+}
+
 // Handler for creating advertisement
 func CreateAdvertisement(c *gin.Context) {
 	db := dbpkg.GetDB()
@@ -60,21 +66,7 @@ func CreateAdvertisement(c *gin.Context) {
 			unlimited_country = true
 		}
 
-		var platformBits uint8
-		if len(condition.Platform) == 0 {
-			platformBits = 7
-		} else {
-			for _, p := range condition.Platform {
-				switch p {
-				case "android":
-					platformBits |= 1 << 0
-				case "ios":
-					platformBits |= 1 << 1
-				case "web":
-					platformBits |= 1 << 2
-				}
-			}
-		}
+		platformBits :=	getPlatformBits(condition.Platform)
 
 		insertCondition := `
 		INSERT INTO advertisement_condition 
@@ -116,17 +108,30 @@ func CreateAdvertisement(c *gin.Context) {
 	c.JSON(http.StatusCreated, gin.H{"message": "Advertisement created successfully"})
 }
 
-func isValidPlatform(platform string) bool {
-	if platform == "" {
-		return true
+// getPlatformBits returns bits value mapping from slice of platforms.
+//
+// If no platform is indicated in the slice, return 7 (111 in binary).
+// If the slice contains an invalid platform, return 0.
+func getPlatformBits(platforms []string) uint8 {
+	var platformBits uint8
+	for _, p := range platforms {
+		bit, found := platformMap[p]
+		if !found { // invalid
+			return 0
+		}
+		platformBits |= bit
 	}
+	if platformBits == 0 { // no specific platform is indicated
+		platformBits = 7
+	}
+	return platformBits
+}
 
-	switch platform {
-	case "android", "ios", "web":
-		return true
-	default:
-		return false
-	}
+// isValidPlatform checks if the given platform is valid.
+// It returns true if the platform is empty (indicating no platform specified),
+// or if the platform exists in the platformMap; otherwise, it returns false.
+func isValidPlatform(platform string) bool {
+	return platform == "" || platformMap[platform] != 0
 }
 
 // Handler for listing active advertisements

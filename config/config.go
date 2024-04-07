@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"path/filepath"
 
 	"github.com/go-yaml/yaml"
 )
@@ -27,7 +28,8 @@ type Config struct {
 var config Config
 
 func init() {
-	config, err := loadConfigFromYAML("config.yaml")
+	configFile := "config.yaml"
+	config, err := loadConfigFromYAML(configFile)
 	if err != nil {
 		log.Fatalf("Error loading config: %v", err)
 	}
@@ -39,7 +41,11 @@ func init() {
 func loadConfigFromYAML(filename string) (Config, error) {
 	data, err := ioutil.ReadFile(filename)
 	if err != nil {
-		return config, err
+		// workaround
+		data, err = ioutil.ReadFile(filepath.Join("..", filename))
+		if err != nil {
+			return config, err
+		}
 	}
 
 	err = yaml.Unmarshal(data, &config)
