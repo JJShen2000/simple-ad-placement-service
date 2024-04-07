@@ -5,9 +5,9 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"testing"
 	"time"
-	"reflect"
 
 	"github.com/gin-gonic/gin"
 	"github.com/jjshen2000/simple-ads/models"
@@ -354,7 +354,7 @@ func TestBuildQuery(t *testing.T) {
 				country:  "",
 				platform: "",
 			},
-			expectedSQL:  `SELECT a.title, a.end_at FROM advertisement AS a
+			expectedSQL: `SELECT a.title, a.end_at FROM advertisement AS a
  WHERE NOW() < a.end_at AND NOW() > a.start_at ORDER BY end_at ASC LIMIT ? OFFSET ?`,
 			expectedArgs: []interface{}{10, 0},
 		},
@@ -368,7 +368,7 @@ func TestBuildQuery(t *testing.T) {
 				country:  "",
 				platform: "",
 			},
-			expectedSQL:  `SELECT a.title, a.end_at FROM advertisement AS a
+			expectedSQL: `SELECT a.title, a.end_at FROM advertisement AS a
  INNER JOIN advertisement_condition AS ac ON a.id = ac.advertisement_id
  WHERE NOW() < a.end_at AND NOW() > a.start_at AND ? BETWEEN ac.age_start AND ac.age_end ORDER BY end_at ASC LIMIT ? OFFSET ?`,
 			expectedArgs: []interface{}{20, 10, 0},
@@ -383,7 +383,7 @@ func TestBuildQuery(t *testing.T) {
 				country:  "",
 				platform: "",
 			},
-			expectedSQL:  `SELECT a.title, a.end_at FROM advertisement AS a
+			expectedSQL: `SELECT a.title, a.end_at FROM advertisement AS a
  INNER JOIN advertisement_condition AS ac ON a.id = ac.advertisement_id
  WHERE NOW() < a.end_at AND NOW() > a.start_at AND ac.gender != ? ORDER BY end_at ASC LIMIT ? OFFSET ?`,
 			expectedArgs: []interface{}{"M", 10, 0},
@@ -398,7 +398,7 @@ func TestBuildQuery(t *testing.T) {
 				country:  "",
 				platform: "",
 			},
-			expectedSQL:  `SELECT a.title, a.end_at FROM advertisement AS a
+			expectedSQL: `SELECT a.title, a.end_at FROM advertisement AS a
  INNER JOIN advertisement_condition AS ac ON a.id = ac.advertisement_id
  WHERE NOW() < a.end_at AND NOW() > a.start_at AND ac.gender != ? ORDER BY end_at ASC LIMIT ? OFFSET ?`,
 			expectedArgs: []interface{}{"F", 10, 0},
@@ -413,7 +413,7 @@ func TestBuildQuery(t *testing.T) {
 				country:  "TW",
 				platform: "",
 			},
-			expectedSQL:  `SELECT a.title, a.end_at FROM advertisement AS a
+			expectedSQL: `SELECT a.title, a.end_at FROM advertisement AS a
  INNER JOIN advertisement_condition AS ac ON a.id = ac.advertisement_id
  INNER JOIN condition_country AS cc ON ac.id = cc.condition_id
  WHERE NOW() < a.end_at AND NOW() > a.start_at AND cc.country_code = ? ORDER BY end_at ASC LIMIT ? OFFSET ?`,
@@ -429,7 +429,7 @@ func TestBuildQuery(t *testing.T) {
 				country:  "",
 				platform: "ios",
 			},
-			expectedSQL:  `SELECT a.title, a.end_at FROM advertisement AS a
+			expectedSQL: `SELECT a.title, a.end_at FROM advertisement AS a
  INNER JOIN advertisement_condition AS ac ON a.id = ac.advertisement_id
  WHERE NOW() < a.end_at AND NOW() > a.start_at AND (platform & ?) = ? ORDER BY end_at ASC LIMIT ? OFFSET ?`,
 			expectedArgs: []interface{}{uint8(2), uint8(2), 10, 0},
@@ -444,6 +444,57 @@ func TestBuildQuery(t *testing.T) {
 
 			if !reflect.DeepEqual(args, tc.expectedArgs) {
 				t.Errorf("Unexpected arguments. Got: %v, Expected: %v", args, tc.expectedArgs)
+			}
+		})
+	}
+}
+
+func TestListActiveAdvertisements(t *testing.T) {
+	testCases := []struct {
+		name       string
+		request    string
+		statusCode int
+		response   string
+	}{
+		{
+			name:       "Success",
+			request:    "",
+			statusCode: http.StatusOK,
+			response:   `{"items":null}`,
+		},
+		{
+			name:       "Invalid offset",
+			request:    "?offset=0",
+			statusCode: http.StatusBadRequest,
+			response:   "",
+		},
+		{
+			name:       "Invalid age",
+			request:    "?age=0",
+			statusCode: http.StatusBadRequest,
+			response:   "",
+		},
+	}
+
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+
+	router.GET("/api/v1/ad", ListActiveAdvertisements)
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			req, err := http.NewRequest("GET", "/api/v1/ad"+tc.request, nil)
+			assert.NoError(t, err)
+
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+
+			// Check the HTTP status code
+			assert.Equal(t, tc.statusCode, w.Code)
+
+			if tc.response != "" {
+				// Check the HTTP response
+				assert.Equal(t, tc.response, w.Body.String())
 			}
 		})
 	}
