@@ -1,12 +1,12 @@
 package controller
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
-	"errors"
 
 	"github.com/biter777/countries"
 
@@ -67,7 +67,7 @@ func CreateAdvertisement(c *gin.Context) {
 			unlimited_country = true
 		}
 
-		platformBits :=	getPlatformBits(condition.Platform)
+		platformBits := getPlatformBits(condition.Platform)
 
 		insertCondition := `
 		INSERT INTO advertisement_condition 
@@ -135,44 +135,53 @@ func isValidPlatform(platform string) bool {
 	return platform == "" || platformMap[platform] != 0
 }
 
+type listParams struct {
+	offset   int
+	limit    int
+	age      int
+	gender   string
+	country  string
+	platform string
+}
+
 // Parse request parameters for listing active advertisements
-func parseListParams(c *gin.Context) (offset, limit, age int, gender, country, platform string, err error) {
+func parseListParams(c *gin.Context) (params listParams, err error) {
 	offsetStr := c.DefaultQuery("offset", "1")
-	offset, err = strconv.Atoi(offsetStr)
-	if err != nil || offset < 1 {
+	params.offset, err = strconv.Atoi(offsetStr)
+	if err != nil || params.offset < 1 {
 		err = errors.New("invalid offset")
 		return
 	}
-	offset -= 1
+	params.offset -= 1
 
 	limitStr := c.DefaultQuery("limit", "5")
-	limit, err = strconv.Atoi(limitStr)
-	if err != nil || limit < 1 || limit > 100 {
+	params.limit, err = strconv.Atoi(limitStr)
+	if err != nil || params.limit < 1 || params.limit > 100 {
 		err = errors.New("invalid limit")
 		return
 	}
 
 	ageStr := c.DefaultQuery("age", "-1")
-	age, err = strconv.Atoi(ageStr)
-	if err != nil || (c.Query("age") != "" && (age < 1 || age > 100)) {
+	params.age, err = strconv.Atoi(ageStr)
+	if err != nil || (c.Query("age") != "" && (params.age < 1 || params.age > 100)) {
 		err = errors.New("invalid age")
 		return
 	}
 
-	gender = c.Query("gender")
-	if gender != "" && gender != "M" && gender != "F" {
+	params.gender = c.Query("gender")
+	if params.gender != "" && params.gender != "M" && params.gender != "F" {
 		err = errors.New("invalid gender")
 		return
 	}
 
-	country = c.Query("country")
-	if country != "" && countries.ByName(country) == countries.Unknown {
+	params.country = c.Query("country")
+	if params.country != "" && countries.ByName(params.country) == countries.Unknown {
 		err = errors.New("invalid country")
 		return
 	}
 
-	platform = c.Query("platform")
-	if platform != "" && !isValidPlatform(platform) {
+	params.platform = c.Query("platform")
+	if params.platform != "" && !isValidPlatform(params.platform) {
 		err = errors.New("invalid platform")
 		return
 	}
@@ -182,11 +191,12 @@ func parseListParams(c *gin.Context) (offset, limit, age int, gender, country, p
 // Handler for listing active advertisements
 func ListActiveAdvertisements(c *gin.Context) {
 	// Parse parameters *******************************************************************
-	offset, limit, age, gender, country, platform, err := parseListParams(c)
+	params, err := parseListParams(c)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+	offset, limit, age, gender, country, platform := params.offset, params.limit, params.age, params.gender, params.country, params.platform
 
 	// Build query *******************************************************************
 	db := dbpkg.GetDB()

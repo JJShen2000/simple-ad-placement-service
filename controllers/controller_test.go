@@ -197,20 +197,20 @@ func TestIsValidPlatform(t *testing.T) {
 }
 
 func TestParseListParams(t *testing.T) {
-	type expected struct {
-		offset   int
-		limit    int
-		age      int
-		gender   string
-		country  string
-		platform string
-	}
+	// type expected struct {
+	// 	offset   int
+	// 	limit    int
+	// 	age      int
+	// 	gender   string
+	// 	country  string
+	// 	platform string
+	// }
 
 	testCases := []struct {
 		name         string
 		queryParams  map[string]string
 		expectedErr  string
-		expectedData expected
+		expectedData listParams
 	}{
 		{
 			name: "ValidParams",
@@ -223,7 +223,7 @@ func TestParseListParams(t *testing.T) {
 				"platform": "android",
 			},
 			expectedErr: "",
-			expectedData: expected{
+			expectedData: listParams{
 				offset:   0,
 				limit:    5,
 				age:      20,
@@ -236,7 +236,7 @@ func TestParseListParams(t *testing.T) {
 			name:        "Empty Params",
 			queryParams: map[string]string{},
 			expectedErr: "",
-			expectedData: expected{
+			expectedData: listParams{
 				offset:   0,
 				limit:    5,
 				age:      -1,
@@ -256,7 +256,7 @@ func TestParseListParams(t *testing.T) {
 				"platform": "android",
 			},
 			expectedErr:  "invalid offset",
-			expectedData: expected{},
+			expectedData: listParams{},
 		},
 		{
 			name: "Invalid limit",
@@ -265,7 +265,7 @@ func TestParseListParams(t *testing.T) {
 				"limit":  "0",
 			},
 			expectedErr:  "invalid limit",
-			expectedData: expected{},
+			expectedData: listParams{},
 		},
 		{
 			name: "Invalid age(-1)",
@@ -273,7 +273,7 @@ func TestParseListParams(t *testing.T) {
 				"age": "-1",
 			},
 			expectedErr:  "invalid age",
-			expectedData: expected{},
+			expectedData: listParams{},
 		},
 		{
 			name: "Invalid age(0)",
@@ -281,7 +281,7 @@ func TestParseListParams(t *testing.T) {
 				"age": "0",
 			},
 			expectedErr:  "invalid age",
-			expectedData: expected{},
+			expectedData: listParams{},
 		},
 		{
 			name: "Invalid gender",
@@ -289,7 +289,7 @@ func TestParseListParams(t *testing.T) {
 				"gender": "G",
 			},
 			expectedErr:  "invalid gender",
-			expectedData: expected{},
+			expectedData: listParams{},
 		},
 		{
 			name: "Invalid country",
@@ -297,7 +297,7 @@ func TestParseListParams(t *testing.T) {
 				"country": "UU",
 			},
 			expectedErr:  "invalid country",
-			expectedData: expected{},
+			expectedData: listParams{},
 		},
 		{
 			name: "Invalid platform",
@@ -305,14 +305,14 @@ func TestParseListParams(t *testing.T) {
 				"platform": "aandroid",
 			},
 			expectedErr:  "invalid platform",
-			expectedData: expected{},
+			expectedData: listParams{},
 		},
 	}
 
 	// Iterate over test cases
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			req := httptest.NewRequest(http.MethodGet, "/path", nil)
+			req := httptest.NewRequest(http.MethodGet, "/path", http.NoBody)
 			q := req.URL.Query()
 			for key, value := range tc.queryParams {
 				q.Add(key, value)
@@ -322,18 +322,18 @@ func TestParseListParams(t *testing.T) {
 			c, _ := gin.CreateTestContext(w)
 			c.Request = req
 
-			offset, limit, age, gender, country, platform, err := parseListParams(c)
+			params, err := parseListParams(c)
 
 			// Assertions
 			if tc.expectedErr == "" {
 				assert.NoError(t, err)
-
-				assert.Equal(t, tc.expectedData.offset, offset)
-				assert.Equal(t, tc.expectedData.limit, limit)
-				assert.Equal(t, tc.expectedData.age, age)
-				assert.Equal(t, tc.expectedData.gender, gender)
-				assert.Equal(t, tc.expectedData.country, country)
-				assert.Equal(t, tc.expectedData.platform, platform)
+				assert.Equal(t, tc.expectedData, params)
+				// assert.Equal(t, tc.expectedData.offset, offset)
+				// assert.Equal(t, tc.expectedData.limit, limit)
+				// assert.Equal(t, tc.expectedData.age, age)
+				// assert.Equal(t, tc.expectedData.gender, gender)
+				// assert.Equal(t, tc.expectedData.country, country)
+				// assert.Equal(t, tc.expectedData.platform, platform)
 			} else {
 				assert.Error(t, err)
 				assert.Contains(t, err.Error(), tc.expectedErr)
