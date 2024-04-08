@@ -39,7 +39,7 @@ CREATE TABLE advertisement_condition (
 CREATE TABLE condition_country (
     condition_id INT,
     country_code CHAR(2), -- ISO-3166 alpha 2 code
-    PRIMARY KEY (condition_id, country_code),
+    KEY (condition_id, country_code),
     FOREIGN KEY (condition_id) REFERENCES advertisement_condition(id)
 );
 

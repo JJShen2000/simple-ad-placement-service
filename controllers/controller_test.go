@@ -3,18 +3,81 @@ package controller
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
+	"log"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
+	"strings"
+
+	// "strconv"
 	"testing"
 	"time"
+
+	"github.com/jmoiron/sqlx"
 
 	"github.com/gin-gonic/gin"
 	"github.com/jjshen2000/simple-ads/models"
 	"github.com/stretchr/testify/assert"
 )
 
+var schema = `
+DROP TABLE IF EXISTS condition_country;
+
+DROP TABLE IF EXISTS advertisement_condition;
+
+DROP TABLE IF EXISTS advertisement;
+
+CREATE TABLE advertisement (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    title VARCHAR(255) NOT NULL,
+    start_at DATETIME NOT NULL,
+    end_at DATETIME NOT NULL
+)
+
+CREATE TABLE advertisement_condition (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    advertisement_id INT NOT NULL,
+    age_start TINYINT UNSIGNED, -- 0-100
+    age_end TINYINT UNSIGNED,   -- 0-100
+    gender CHAR(2),             -- M, F, MF
+	unlimited_country BOOL,
+    platform TINYINT UNSIGNED,  -- bit-wise 'android', 'ios', 'web'
+    FOREIGN KEY (advertisement_id) REFERENCES advertisement(id)
+);
+
+CREATE TABLE condition_country (
+    condition_id INT,
+    country_code CHAR(2), -- ISO-3166 alpha 2 code
+    KEY (condition_id, country_code),
+    FOREIGN KEY (condition_id) REFERENCES advertisement_condition(id)
+);
+
+CREATE INDEX idx_start_at ON advertisement (start_at);
+
+CREATE INDEX idx_end_at ON advertisement (end_at);
+
+CREATE INDEX idx_advertisement_id ON advertisement_condition (advertisement_id);
+`
+
+func testDbInit() *sqlx.DB {
+	testDB, err := sqlx.Connect("mysql", "root:testpassword@tcp(localhost:3309)/ads")
+	if err != nil {
+		log.Fatalln("Failed to connect to test MySQL:", err)
+	}
+	queries := strings.Split(schema, "\n\n")
+
+	for _, query := range queries {
+		testDB.Exec(query)
+	}
+	return testDB
+}
+
 func TestCreateAdvertisement(t *testing.T) {
+	// testDB := testDbInit()
+
+	// defer testDB.Close()
+
 	testCases := []struct {
 		name       string
 		payload    []byte
@@ -100,7 +163,7 @@ func TestCreateAdvertisement(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
 
-	router.POST("/api/v1/ad", CreateAdvertisement)
+	router.POST("/api/v1/ad", CreateAdvertisementHandler(nil))
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -117,6 +180,7 @@ func TestCreateAdvertisement(t *testing.T) {
 				// Check the HTTP response
 				assert.Equal(t, tc.response, w.Body.String())
 			}
+			time.Sleep(100 * time.Millisecond)
 		})
 	}
 }
@@ -479,11 +543,15 @@ func TestListActiveAdvertisements(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
 
-	router.GET("/api/v1/ad", ListActiveAdvertisements)
+	// testDB := testDbInit()
+
+	// defer testDB.Close()
+
+	router.GET("/api/v1/ad", ListActiveAdvertisementsHandler(nil))
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			req, err := http.NewRequest("GET", "/api/v1/ad"+tc.request, nil)
+			req, err := http.NewRequest("GET", "/api/v1/ad"+tc.request, http.NoBody)
 			assert.NoError(t, err)
 
 			w := httptest.NewRecorder()
@@ -497,5 +565,159 @@ func TestListActiveAdvertisements(t *testing.T) {
 				assert.Equal(t, tc.response, w.Body.String())
 			}
 		})
+	}
+}
+
+func TestIntegration(t *testing.T) {
+	// testDB := testDbInit()
+
+	// defer testDB.Close()
+
+	var adList []models.Advertisement
+	numAdActive := 30
+	numAdBefore := 20
+	numAdFuture := 10
+	adCnt := 1
+
+	for i := 1; i <= numAdActive; i++ {
+		ad := models.Advertisement{
+			ID:      adCnt,
+			Title:   fmt.Sprintf("AD %d", adCnt),
+			StartAt: time.Now(),
+			EndAt:   time.Now().Add(time.Hour * 24 * 7),
+			Conditions: []models.Conditions{
+				{
+					AgeStart: 18,
+					AgeEnd:   65,
+					Gender:   []string{"M", "F"},
+					Country:  []string{"TW", "US"},
+					Platform: []string{"android", "ios", "web"},
+				},
+			},
+		}
+
+		if adCnt%4 >= 1 {
+			ad.Conditions = append(ad.Conditions, models.Conditions{
+				AgeStart: 18,
+				AgeEnd:   65,
+				Gender:   []string{"M"},
+			})
+		}
+
+		if adCnt%4 >= 2 {
+			ad.Conditions = append(ad.Conditions, models.Conditions{
+				AgeStart: 66,
+				AgeEnd:   100,
+				Country:  []string{"TW", "US"},
+				Platform: []string{"web"},
+			})
+		}
+
+		if adCnt%4 >= 3 {
+			ad.Conditions = append(ad.Conditions, models.Conditions{
+				AgeStart: 1,
+				AgeEnd:   17,
+				Country:  []string{"JP"},
+				Platform: []string{"ios", "web"},
+			})
+		}
+		adCnt += 1
+		adList = append(adList, ad)
+	}
+
+	for i := 1; i <= numAdBefore; i++ {
+		ad := models.Advertisement{
+			ID:      adCnt,
+			Title:   fmt.Sprintf("AD %d", adCnt),
+			StartAt: time.Now().Add(-time.Hour * 24 * 14),
+			EndAt:   time.Now().Add(-time.Hour * 24 * 7),
+			Conditions: []models.Conditions{
+				{
+					AgeStart: 18,
+					AgeEnd:   65,
+					Gender:   []string{"M", "F"},
+					Country:  []string{"TW", "US"},
+					Platform: []string{"android", "ios", "web"},
+				},
+			},
+		}
+		adCnt += 1
+		adList = append(adList, ad)
+	}
+
+	for i := 1; i <= numAdFuture; i++ {
+		ad := models.Advertisement{
+			ID:      adCnt,
+			Title:   fmt.Sprintf("AD %d", adCnt),
+			StartAt: time.Now().Add(time.Hour * 24 * 7),
+			EndAt:   time.Now().Add(time.Hour * 24 * 14),
+			Conditions: []models.Conditions{
+				{
+					AgeStart: 18,
+					AgeEnd:   65,
+					Gender:   []string{"M", "F"},
+					Country:  []string{"TW", "US"},
+					Platform: []string{"android", "ios", "web"},
+				},
+			},
+		}
+		adCnt += 1
+		adList = append(adList, ad)
+	}
+
+	// mock
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+
+	router.POST("/api/v1/ad", CreateAdvertisementHandler(nil))
+	router.GET("/api/v1/ad", ListActiveAdvertisementsHandler(nil))
+
+	// add these to mock database via api
+	for _, ad := range adList {
+		jsonData, err := json.Marshal(ad)
+		if err != nil {
+			fmt.Println("Error:", err)
+			return
+		}
+		// t.Run("create"+strconv.Itoa(i), func(t *testing.T) {
+		req, err := http.NewRequest("POST", "/api/v1/ad", bytes.NewReader([]byte(string(jsonData))))
+		assert.NoError(t, err)
+
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusCreated, w.Code)
+		// })
+	}
+
+	testCases := []struct {
+		name     string
+		request  string
+		response string
+	}{
+		{
+			name:     "all",
+			request:  "",
+			response: "",
+		},
+		{
+			name:     "offset",
+			request:  "?offest=10",
+			response: "",
+		},
+	}
+
+	// construct list requests
+	for _, tc := range testCases {
+		// t.Run(tc.name, func(t *testing.T) {
+		req, err := http.NewRequest("GET", "/api/v1/ad"+tc.request, http.NoBody)
+		assert.NoError(t, err)
+
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusOK, w.Code)
+		log.Println(w.Body.String())
+		// Check the HTTP response
+		assert.Equal(t, tc.response, w.Body.String())
+		// })
 	}
 }

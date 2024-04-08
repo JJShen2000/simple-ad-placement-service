@@ -1,0 +1,34 @@
+version: '3'
+
+services:
+  mysql:
+    image: mysql:latest
+    restart: always
+    ports:
+    - "3307:3306"
+    expose:
+      - 3307
+    environment:
+      MYSQL_ROOT_PASSWORD: jjshen
+      MYSQL_DATABASE: ads
+      # MYSQL_USER: your_user
+      # MYSQL_PASSWORD: dcard
+  # mysql-test:
+  #   image: mysql:latest
+  #   restart: always
+  #   ports:
+  #   - "3309:3306"
+  #   expose:
+  #     - 3309
+  #   environment:
+  #     MYSQL_ROOT_PASSWORD: testpassword
+  #     MYSQL_DATABASE: ads
+
+  simple-ad-placement-service:
+    build: .
+    ports:
+      - "8080:8080"
+    depends_on:
+      - mysql
+    expose:
+      - 3308

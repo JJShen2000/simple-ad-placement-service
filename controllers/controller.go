@@ -8,12 +8,13 @@ import (
 	"time"
 
 	"github.com/biter777/countries"
-
 	"github.com/gin-gonic/gin"
 	_ "github.com/go-sql-driver/mysql"
+	"github.com/jmoiron/sqlx"
 
 	dbpkg "github.com/jjshen2000/simple-ads/db"
 	"github.com/jjshen2000/simple-ads/models"
+	
 )
 
 var platformMap = map[string]uint8{
@@ -22,9 +23,19 @@ var platformMap = map[string]uint8{
 	"web":     4,
 }
 
+func CreateAdvertisementHandler(testDB *sqlx.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		CreateAdvertisement(c, testDB)
+	}
+}
+
 // Handler for creating advertisement
-func CreateAdvertisement(c *gin.Context) {
-	db := dbpkg.GetDB()
+func CreateAdvertisement(c *gin.Context, testDB *sqlx.DB) {
+	db := testDB
+	if testDB == nil {
+		db = dbpkg.GetDB()
+	}
+	
 	validate := models.GetValidate()
 	var ad models.Advertisement
 
@@ -232,8 +243,14 @@ func buildQuery(params listParams) (query string, args []interface{}) {
 	return query, args
 }
 
+func ListActiveAdvertisementsHandler(testDB *sqlx.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		ListActiveAdvertisements(c, testDB)
+	}
+}
+
 // Handler for listing active advertisements
-func ListActiveAdvertisements(c *gin.Context) {
+func ListActiveAdvertisements(c *gin.Context, testDB *sqlx.DB) {
 	// Parse parameters *******************************************************************
 	params, err := parseListParams(c)
 	if err != nil {
@@ -245,7 +262,10 @@ func ListActiveAdvertisements(c *gin.Context) {
 	query, args := buildQuery(params)
 
 	// Execute query
-	db := dbpkg.GetDB()
+	db := testDB
+	if testDB == nil {
+		db = dbpkg.GetDB()
+	}
 	rows, err := db.Queryx(query, args...)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch advertisements"})

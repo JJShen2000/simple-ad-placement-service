@@ -13,10 +13,10 @@ func SetupRoutes() *gin.Engine {
 	{
 		ad := v1.Group("ad")
 		// Admin API: Create Advertisement
-		ad.POST("", controller.CreateAdvertisement)
+		ad.POST("", controller.CreateAdvertisementHandler(nil))
 
 		// Public API: List Active Advertisements
-		ad.GET("", controller.ListActiveAdvertisements)
+		ad.GET("", controller.ListActiveAdvertisementsHandler(nil))
 	}
 
 	return router

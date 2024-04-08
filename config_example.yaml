@@ -4,7 +4,7 @@ server:
 
 database:
   Username: "root"
-  Password: "passward"
+  Password: "jjshen"
   Network: "tcp"
   Server: "localhost"
   Port: 3306
