@@ -19,6 +19,8 @@ docker-compose up
 
 The port `8808` should be exposed on host.
 
+To run the server without Docker, you need to modify the config.yaml file.
+
 ## APIs
 ### Admin API
 **POST**  `/api/v1/ad`
@@ -88,7 +90,7 @@ Get the advertisements that meets the filter.
 
   It can be "android", "ios", or "web".
 
-## Design
+## Design & Implementation
 - HTTP web framework: gin
 - Database: MySQL
   - Created 3 tables for storing data
@@ -96,5 +98,7 @@ Get the advertisements that meets the filter.
   
   ![image](https://github.com/JJShen2000/simple-ad-placement-service/assets/40858520/ba0df702-eafd-4f74-b77a-934f8b1fed2e)
 
+- Tool
+  - code quality: `gocritic`
 - Potential optimization method:
   - Since we assume the total active ads < 1000. Using Redis sorted sets with end times as scores may improve efficiency.

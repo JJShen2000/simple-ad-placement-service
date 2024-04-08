@@ -483,7 +483,7 @@ func TestListActiveAdvertisements(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			req, err := http.NewRequest("GET", "/api/v1/ad"+tc.request, nil)
+			req, err := http.NewRequest("GET", "/api/v1/ad"+tc.request, http.NoBody)
 			assert.NoError(t, err)
 
 			w := httptest.NewRecorder()
