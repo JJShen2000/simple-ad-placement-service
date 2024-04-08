@@ -4,9 +4,20 @@ The server provides APIs for the advertisement placement service.
 - Public API: Get the advertisements that meets the filter.
 
 ## Usage
+### Prerequisites
+Docker and Docker Compose installed on your machine.
+
+### Build
 ```copy 
-go run main.go
+docker-compose build
 ```
+
+### Run
+```copy 
+docker-compose up
+```
+
+The port `8808` should be exposed on host.
 
 ## APIs
 ### Admin API

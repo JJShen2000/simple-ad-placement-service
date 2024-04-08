@@ -1,0 +1,11 @@
+server:
+  IP: 0.0.0.0
+  Port: 8080
+
+database:
+  Username: "root"
+  Password: "jjshen"
+  Network: "tcp"
+  Server: "mysql"
+  Port: 3306
+  Database: "ads"
