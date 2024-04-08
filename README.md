@@ -76,3 +76,14 @@ Get the advertisements that meets the filter.
 - `platform` string
 
   It can be "android", "ios", or "web".
+
+## Design
+- HTTP web framework: gin
+- Database: MySQL
+  - Created 3 tables for storing data
+  - Set active time as index.
+  
+  ![image](https://github.com/JJShen2000/simple-ad-placement-service/assets/40858520/ba0df702-eafd-4f74-b77a-934f8b1fed2e)
+
+- Potential optimization method:
+  - Since we assume the total active ads < 1000. Using Redis sorted sets with end times as scores may improve efficiency.
